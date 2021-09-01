@@ -1,0 +1,58 @@
+image: dalmatialab/accumulo
+imageTag: 2.0.1-rc-1
+imagePullPolicy: Always
+restartPolicy: Always
+
+accumuloPassword: GisPwd
+hadoopMasterAddress: hadoop-namenode
+zookeeperServiceName: zk-cs
+
+master:
+  replicas: 1
+  nodeSelector: false
+  storage:
+    enabled: false
+    volumeMounts:
+      - name:
+        mountPath:
+    volumes:
+      - name:
+        hostPath:
+          path:
+tserver:
+  replicas: 2
+  nodeSelector: false
+  storage:
+    enabled: false
+    volumeMounts:
+      - name:
+        mountPath:
+    volumes:
+      - name:
+        hostPath:
+          path:
+monitor:
+  replicas: 1
+  nodePort:
+  nodeSelector: false
+  storage:
+    enabled: false
+    volumeMounts:
+      - name:
+        mountPath:
+    volumes:
+      - name:
+        hostPath:
+          path:
+gc:
+  replicas: 1
+  nodeSelector: false
+  storage:
+    enabled: false
+    volumeMounts:
+      - name:
+        mountPath:
+    volumes:
+      - name:
+        hostPath:
+          path:

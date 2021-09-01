@@ -1,0 +1,128 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hadoop-namenode
+spec:
+  serviceName: {{ .Values.namenode.serviceName }}
+  replicas: {{ .Values.namenode.replicas}}
+  selector:
+    matchLabels:
+      app: hadoop-namenode
+  template:
+    metadata:
+      labels:
+        app: hadoop-namenode
+    spec:
+      containers:
+      - name: hadoop-namenode
+        image: {{ .Values.image }}:{{ .Values.imageTag }}
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
+        env:
+        - name: CLUSTER_NAME
+          value: hdfs
+        - name: TYPE
+          value: name
+        ports:
+        - containerPort: 8020
+        {{- if .Values.namenode.storage.enabled }}
+        volumeMounts:
+        {{- .Values.namenode.storage.volumeMounts | toYaml | trimSuffix "\n" | nindent 8 }}
+      	{{- end }}
+      restartPolicy: {{ .Values.restartPolicy }}
+      {{- if .Values.namenode.storage.enabled }}
+      volumes:
+      {{- .Values.namenode.storage.volumes | toYaml | trimSuffix "\n" | nindent 6 }}
+      {{- end }}
+      {{- if .Values.namenode.nodeSelector }}
+      nodeSelector:
+        namenode: {{ .Values.namenode.nodeSelector | quote }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.namenode.serviceName }}
+spec:
+  ports:
+  - port: 8020
+    name: "8020"
+  clusterIP: None
+  selector:
+    app: hadoop-namenode
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hadoop-namenode-external
+spec:
+  ports:
+  - port: 9870
+    name: "9870"
+    targetPort: 9870
+    nodePort: {{ .Values.namenode.nodePort }}
+  selector:
+    app: hadoop-namenode
+  type: NodePort
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hadoop-datanode
+spec:
+  serviceName: hadoop-datanode
+  replicas: {{ .Values.datanode.replicas }}
+  selector:
+    matchLabels:
+      app: hadoop-datanode
+  template:
+    metadata:
+      labels:
+        app: hadoop-datanode
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - hadoop-datanode
+            topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: datanode
+        image: {{ .Values.image }}:{{ .Values.imageTag }}
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
+        env:
+        - name: CORE_CONF_fs_defaultFS
+          value: hdfs://{{ .Values.namenode.serviceName }}-0.{{ .Values.namenode.serviceName }}.{{ .Release.Namespace }}.svc.cluster.local:8020
+        - name: TYPE
+          value: data
+        ports:
+        - containerPort: 50010
+          name: fs
+        {{- if .Values.datanode.storage.enabled }}
+        volumeMounts:
+        {{- .Values.datanode.storage.volumeMounts | toYaml | trimSuffix "\n" | nindent 8 }}
+      	{{- end }}
+      restartPolicy: {{ .Values.restartPolicy }}
+      {{- if .Values.datanode.storage.enabled }}
+      volumes:
+      {{- .Values.datanode.storage.volumes | toYaml | trimSuffix "\n" | nindent 6 }}
+      {{- end }}
+      {{- if .Values.datanode.nodeSelector }}
+      nodeSelector:
+        datanode: {{ .Values.datanode.nodeSelector | quote }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.datanode.serviceName }}
+spec:
+  ports:
+  - port: 50010
+    name: "50010"
+  clusterIP: None
+  selector:
+    app: hadoop-datanode

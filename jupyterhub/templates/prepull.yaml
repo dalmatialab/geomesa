@@ -1,0 +1,147 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: hook-image-puller
+  labels:
+    hub.jupyter.org/deletable: "true"
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-10"
+spec:
+  selector:
+    matchLabels:
+      component: hook-image-puller
+      app: jupyterhub
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 100%
+  template:
+    metadata:
+      labels:
+        component: hook-image-puller
+        app: jupyterhub
+    spec:
+      tolerations:
+        - key: hub.jupyter.org_dedicated
+          operator: Equal
+          value: user
+          effect: NoSchedule
+        - key: hub.jupyter.org/dedicated
+          operator: Equal
+          value: user
+          effect: NoSchedule
+      {{- if .Values.prepull.nodeSelector }}
+      nodeSelector:  { prepull: "true" }
+      {{- end }}
+      terminationGracePeriodSeconds: 0
+      automountServiceAccountToken: false
+      initContainers:
+        - name: image-pull-singleuser
+          image: dalmatialab/jupyterlab:1.0-rc-1
+          imagePullPolicy: Always
+          command:
+            - /bin/sh
+            - -c
+            - echo "Pulling complete"
+        - name: image-pull-jupyterhub
+          image: {{ .Values.hub.image }}:{{ .Values.hub.imageTag }}
+          imagePullPolicy: Always
+          command:
+            - /bin/sh
+            - -c
+            - echo "Pulling complete"
+        - name: image-pull-metadata-block
+          image: jupyterhub/k8s-network-tools:0.8.2
+          imagePullPolicy: Always
+          command:
+            - /bin/sh
+            - -c
+            - echo "Pulling complete"
+      containers:
+        - name: pause
+          image: gcr.io/google_containers/pause:3.0
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: hook-image-awaiter
+  labels:
+    component: image-puller
+    app: jupyterhub
+    hub.jupyter.org/deletable: "true"
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "10"
+spec:
+  template:
+    metadata:
+      labels:
+        component: image-puller
+        app: jupyterhub
+    spec:
+      restartPolicy: Never
+      serviceAccountName: hook-image-awaiter
+      containers:
+        - image: jupyterhub/k8s-image-awaiter:0.8.2
+          name: hook-image-awaiter
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: POD_NAMESPACE
+              value: {{ .Release.Namespace }}
+          command:
+            - /image-awaiter
+            - -ca-path=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            - -auth-token-path=/var/run/secrets/kubernetes.io/serviceaccount/token
+            - -api-server-address=https://$(KUBERNETES_SERVICE_HOST):$(KUBERNETES_SERVICE_PORT)
+            - -namespace=$(POD_NAMESPACE)
+            - -daemonset=hook-image-puller
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hook-image-awaiter
+  labels:
+    component: image-puller
+    app: jupyterhub
+    hub.jupyter.org/deletable: "true"
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "0"
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: hook-image-awaiter
+  labels:
+    hub.jupyter.org/deletable: "true"
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "0"
+rules:
+  - apiGroups: ["apps"]       # "" indicates the core API group
+    resources: ["daemonsets"]
+    verbs: ["get"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: hook-image-awaiter
+  labels:
+    hub.jupyter.org/deletable: "true"
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "0"
+subjects:
+  - kind: ServiceAccount
+    name: hook-image-awaiter
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: hook-image-awaiter
+  apiGroup: rbac.authorization.k8s.io

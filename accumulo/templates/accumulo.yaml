@@ -1,0 +1,221 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: accumulo-master
+spec:
+  serviceName: accumulo-master
+  replicas: {{ .Values.master.replicas }}
+  selector:
+    matchLabels:
+      app: accumulo-master
+  template:
+    metadata:
+      labels:
+        app: accumulo-master
+    spec:
+      containers:
+      - name: accumulo-master
+        args: ["master","--auto-init"]
+        image: {{ .Values.image }}:{{ .Values.imageTag }}
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
+        env:
+        - name: ACCUMULO_PASSWORD
+          value: {{ .Values.accumuloPassword }}
+        - name: HADOOP_MASTER_ADDRESS
+          value: {{ .Values.hadoopMasterAddress }}
+        - name: ZOOKEEPERS
+          value: {{ .Values.zookeeperServiceName }}
+        {{- if .Values.master.storage.enabled }}
+        volumeMounts:
+        {{- .Values.master.storage.volumeMounts | toYaml | trimSuffix "\n" | nindent 8 }}
+      	{{- end }}
+      restartPolicy: {{ .Values.restartPolicy }}
+      {{- if .Values.master.storage.enabled }}
+      volumes:
+      {{- .Values.master.storage.volumes | toYaml | trimSuffix "\n" | nindent 6 }}
+      {{- end }}
+      {{- if .Values.master.nodeSelector }}
+      nodeSelector:
+        accumulomaster: {{ .Values.master.nodeSelector | quote }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: accumulo-master
+spec:
+  ports:
+  - port: 7777
+    name: "7777"
+  selector:
+    app: accumulo-master
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: accumulo-tserver
+spec:
+  serviceName: accumulo-tserver
+  replicas: {{ .Values.tserver.replicas }}
+  selector:
+    matchLabels:
+      app: accumulo-tserver
+  template:
+    metadata:
+      labels:
+        app: accumulo-tserver
+    spec:
+      containers:
+      - name: accumulo-tserver
+        args: ["tserver"]
+        image: {{ .Values.image }}:{{ .Values.imageTag }}
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
+        env:
+        - name: HADOOP_MASTER_ADDRESS
+          value: {{ .Values.hadoopMasterAddress }}
+        - name: ZOOKEEPERS
+          value: {{ .Values.zookeeperServiceName }}
+        ports:
+        - containerPort: 9997
+        {{- if .Values.tserver.storage.enabled }}
+        volumeMounts:
+        {{- .Values.tserver.storage.volumeMounts | toYaml | trimSuffix "\n" | nindent 8 }}
+      	{{- end }}
+      restartPolicy: {{ .Values.restartPolicy }}
+      {{- if .Values.tserver.storage.enabled }}
+      volumes:
+      {{- .Values.tserver.storage.volumes | toYaml | trimSuffix "\n" | nindent 6 }}
+      {{- end }}
+      {{- if .Values.tserver.nodeSelector }}
+      nodeSelector:
+        accumulotserver: {{ .Values.tserver.nodeSelector | quote }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: accumulo-tserver
+spec:
+  ports:
+  - port: 9997
+    name: "9997"
+  selector:
+    app: accumulo-tserver
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: accumulo-monitor
+spec:
+  serviceName: accumulo-monitor
+  replicas: {{ .Values.monitor.replicas }}
+  selector:
+    matchLabels:
+      app: accumulo-monitor
+  template:
+    metadata:
+      labels:
+        app: accumulo-monitor
+    spec:
+      containers:
+      - name: accumulo-monitor
+        args: ["monitor"]
+        image: {{ .Values.image }}:{{ .Values.imageTag }}
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
+        env:
+        - name: HADOOP_MASTER_ADDRESS
+          value: {{ .Values.hadoopMasterAddress }}
+        - name: ZOOKEEPERS
+          value: {{ .Values.zookeeperServiceName }}
+        ports:
+        - containerPort: 9995
+        {{- if .Values.monitor.storage.enabled }}
+        volumeMounts:
+        {{- .Values.monitor.storage.volumeMounts | toYaml | trimSuffix "\n" | nindent 8 }}
+      	{{- end }}
+      restartPolicy: {{ .Values.restartPolicy }}
+      {{- if .Values.monitor.storage.enabled }}
+      volumes:
+      {{- .Values.monitor.storage.volumes | toYaml | trimSuffix "\n" | nindent 6 }}
+      {{- end }}
+      {{- if .Values.monitor.nodeSelector }}
+      nodeSelector:
+        accumulomonitor: {{ .Values.monitor.nodeSelector | quote }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: accumulo-monitor
+spec:
+  ports:
+  - port: 9995
+    name: "9995"
+  selector:
+    app: accumulo-monitor
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: accumulo-monitor-remote
+spec:
+  ports:
+  - port: 9995
+    name: accumulo-monitor-remote
+    targetPort: 9995
+    nodePort: {{ .Values.monitor.nodePort }}
+  selector:
+    app: accumulo-monitor
+  type: NodePort
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: accumulo-gc
+spec:
+  serviceName: accumulo-gc
+  replicas: {{ .Values.gc.replicas }}
+  selector:
+    matchLabels:
+      app: garbage
+  template:
+    metadata:
+      labels:
+        app: garbage
+    spec:
+      containers:
+      - name: accumulo-gc
+        args: ["gc","--auto-init"]
+        image: {{ .Values.image }}:{{ .Values.imageTag }}
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
+        env:
+        - name: HADOOP_MASTER_ADDRESS
+          value: {{ .Values.hadoopMasterAddress }}
+        - name: ZOOKEEPERS
+          value: {{ .Values.zookeeperServiceName }}
+        ports:
+        - containerPort: 9998
+        {{- if .Values.gc.storage.enabled }}
+        volumeMounts:
+        {{- .Values.gc.storage.volumeMounts | toYaml | trimSuffix "\n" | nindent 8 }}
+      	{{- end }}
+      restartPolicy: {{ .Values.restartPolicy }}
+      {{- if .Values.gc.storage.enabled }}
+      volumes:
+      {{- .Values.gc.storage.volumes | toYaml | trimSuffix "\n" | nindent 6 }}
+      {{- end }}
+      {{- if .Values.gc.nodeSelector }}
+      nodeSelector:
+        accumulogc: {{ .Values.gc.nodeSelector | quote }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: accumulo-gc
+spec:
+  ports:
+  - name: "9998"
+    port: 9998
+  selector:
+    app: garbage

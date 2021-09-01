@@ -1,0 +1,31 @@
+image: dalmatialab/spark
+imageTag: 2.4.8-rc-1
+imagePullPolicy: Always
+restartPolicy: Always
+
+master:
+  serviceName: spark-master
+  nodeSelector: false
+  replicas: 1
+  nodePort:
+  storage:
+    enabled: false
+    volumeMounts:
+      - name: 
+        mountPath:
+    volumes:
+      - name: 
+        hostPath:
+          path: 
+worker:
+  nodeSelector: false
+  cores: 4
+  storage:
+    enabled: false
+    volumeMounts:
+      - name:
+        mountPath:
+    volumes:
+      - name:
+        hostPath:
+          path:

@@ -1,0 +1,19 @@
+image: dalmatialab/zookeeper
+imageTag: 3.6.3-rc-1
+imagePullPolicy: Always
+restartPolicy: Always
+
+clientServiceName: zk-cs
+replicas: 1
+
+storage:
+  enabled: false
+  volumeMounts:
+    - name:
+      mountPath:
+  volumes:
+    - name:
+      hostPath:
+        path:
+
+nodeSelector: false

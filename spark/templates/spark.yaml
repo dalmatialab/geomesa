@@ -1,0 +1,117 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-master
+spec:
+  replicas: {{ .Values.master.replicas }}
+  selector:
+    matchLabels:
+      app: spark-master
+  template:
+    metadata:
+      labels:
+        app: spark-master
+    spec:
+      containers:
+      - name: spark-master
+        image: {{ .Values.image }}:{{ .Values.imageTag }}
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
+        env:
+          - name: TYPE
+            value: master
+          - name: SPARK_WORKER_CORES
+            value: {{ .Values.workerCores | quote }}
+        ports:
+        - containerPort: 8080
+        - containerPort: 7077
+        - containerPort: 6066
+        {{- if .Values.master.storage.enabled }}
+        volumeMounts:
+        {{- .Values.master.storage.volumeMounts | toYaml | trimSuffix "\n" | nindent 8 }}
+      	{{- end }}
+      restartPolicy: {{ .Values.restartPolicy }}
+      {{- if .Values.master.storage.enabled }}
+      volumes:
+      {{- .Values.master.storage.volumes | toYaml | trimSuffix "\n" | nindent 6 }}
+      {{- end }}
+      {{- if .Values.master.nodeSelector }}
+      nodeSelector:
+        sparkmaster: {{ .Values.master.nodeSelector | quote }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.master.serviceName }}
+spec:
+  selector:
+    app: spark-master
+  ports:
+  - name: web-ui
+    protocol: TCP
+    port: 8080
+    targetPort: 8080
+  - name: master
+    protocol: TCP
+    port: 7077
+    targetPort: 7077
+  - name: master-rest
+    protocol: TCP
+    port: 6066
+    targetPort: 6066
+  clusterIP: None
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-master-external
+spec:
+  ports:
+  - port: 8080
+    name: "8080"
+    protocol: TCP
+    nodePort: {{ .Values.master.nodePort }}
+    targetPort: 8080
+  selector:
+    app: spark-master
+  type: NodePort
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: spark-worker
+spec:
+  selector:
+    matchLabels:
+      name: spark-worker
+  template:
+    metadata:
+      labels:
+        name: spark-worker
+    spec:
+      containers:
+      - name: spark-worker
+        image: {{ .Values.image }}:{{ .Values.imageTag }}
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
+        env:
+          - name: TYPE
+            value: worker
+          - name: SPARK_MASTER
+            value: spark://{{ .Values.master.serviceName }}:7077
+          - name: SPARK_WORKER_CORES
+            value: {{ .Values.worker.cores | quote }} 
+        ports:
+        - containerPort: 8081
+        {{- if .Values.worker.storage.enabled }}
+        volumeMounts:
+        {{- .Values.worker.storage.volumeMounts | toYaml | trimSuffix "\n" | nindent 8 }}
+      	{{- end }}
+      restartPolicy: {{ .Values.restartPolicy }}
+      {{- if .Values.worker.storage.enabled }}
+      volumes:
+      {{- .Values.worker.storage.volumes | toYaml | trimSuffix "\n" | nindent 6 }}
+      {{- end }}
+      {{- if .Values.worker.nodeSelector }}
+      nodeSelector:
+        sparkworker: {{ .Values.worker.nodeSelector | quote }}
+      {{- end }}

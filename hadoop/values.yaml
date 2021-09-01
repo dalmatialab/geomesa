@@ -1,0 +1,32 @@
+image: dalmatialab/hadoop
+imageTag: 3.3.0-rc-1
+imagePullPolicy: Always
+restartPolicy: Always
+
+namenode:
+  serviceName: hadoop-namenode
+  replicas: 1
+  nodePort: 
+  nodeSelector: false
+  storage:
+    enabled: false
+    volumeMounts:
+      - name:
+        mountPath:
+    volumes:
+      - name:
+        hostPath:
+          path:
+datanode:
+  serviceName: hadoop-datanode
+  replicas: 2
+  nodeSelector: false
+  storage:
+    enabled: false
+    volumeMounts:
+      - name:
+        mountPath:
+    volumes:
+      - name:
+        hostPath:
+          path:
